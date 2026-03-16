@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Property & Policy Intelligence</title>
+  <meta name="description" content="UK property analysis tool — Land Registry history, ARIMA forecast, policy impact, planning tracker, area intelligence agent.">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #ffffff; --bg2: #f5f4f0; --bg3: #eeecea;
+      --text: #1a1a18; --text2: #6b6b65; --text3: #9c9a92;
+      --border: rgba(0,0,0,.12); --border2: rgba(0,0,0,.22);
+      --blue: #378ADD; --green: #1D9E75; --amber: #EF9F27;
+      --red: #E24B4A; --purple: #7F77DD; --gray: #888780;
+      --radius: 8px; --radius-lg: 12px;
+      --info-bg: #E6F1FB; --info-text: #185FA5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a18; --bg2: #242420; --bg3: #2e2e2a;
+        --text: #e8e6de; --text2: #9c9a92; --text3: #6b6b65;
+        --border: rgba(255,255,255,.1); --border2: rgba(255,255,255,.2);
+        --info-bg: #0c2a44; --info-text: #6eaee8;
+      }
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 20px 60px; }
+    header { padding: 28px 0 20px; border-bottom: .5px solid var(--border); margin-bottom: 24px; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    header h1 { font-size: 20px; font-weight: 600; }
+    header p { font-size: 13px; color: var(--text2); margin-top: 3px; }
+    .badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: var(--info-bg); color: var(--info-text); font-weight: 500; white-space: nowrap; }
+    .search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .search-row input { flex: 1; padding: 11px 15px; border: .5px solid var(--border2); border-radius: var(--radius-lg); font-size: 14px; background: var(--bg); color: var(--text); outline: none; }
+    .search-row input:focus { border-color: var(--text3); }
+    .btn { padding: 10px 20px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: opacity .15s; }
+    .btn:hover { opacity: .82; } .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-sm { padding: 7px 14px; font-size: 12px; }
+    .btn-outline { background: transparent; color: var(--text); border: .5px solid var(--border2); }
+    .pills { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 24px; }
+    .pill { font-size: 12px; padding: 5px 13px; border-radius: 20px; border: .5px solid var(--border); background: var(--bg2); color: var(--text2); cursor: pointer; transition: all .15s; }
+    .pill:hover, .pill.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .hidden { display: none !important; }
+    .tabs { display: flex; border-bottom: .5px solid var(--border); margin-bottom: 24px; overflow-x: auto; gap: 0; }
+    .tab { font-size: 13px; padding: 9px 14px; cursor: pointer; color: var(--text2); border: none; background: none; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; transition: color .15s; }
+    .tab.on { color: var(--text); font-weight: 500; border-bottom-color: var(--text); }
+    .tab:hover:not(.on) { color: var(--text); }
+    .pnl { display: none; } .pnl.on { display: block; }
+    .card { background: var(--bg); border: .5px solid var(--border); border-radius: var(--radius-lg); padding: 18px; margin-bottom: 14px; }
+    .card.nb { margin-bottom: 0; }
+    .ct { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .cs { font-size: 12px; color: var(--text2); margin-bottom: 14px; }
+    .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
+    .metric { background: var(--bg2); border-radius: var(--radius); padding: 13px 15px; }
+    .ml { font-size: 11px; color: var(--text2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .05em; }
+    .mv { font-size: 21px; font-weight: 600; } .md { font-size: 12px; margin-top: 3px; }
+    .up { color: var(--red); } .dn { color: var(--green); } .nt { color: var(--text2); }
+    .pbar { display: flex; gap: 14px; flex-wrap: wrap; padding: 11px 15px; background: var(--bg2); border-radius: var(--radius); margin-bottom: 20px; }
+    .pi { display: flex; flex-direction: column; gap: 2px; }
+    .pil { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; }
+    .piv { font-size: 13px; font-weight: 500; }
+    .vd { width: .5px; background: var(--border); align-self: stretch; }
+    .ab { display: inline-flex; align-items: center; gap: 8px; background: var(--bg2); border: .5px solid var(--border); border-radius: var(--radius); padding: 7px 14px; font-size: 13px; font-weight: 500; margin-bottom: 20px; }
+    .lgnd { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-size: 12px; color: var(--text2); }
+    .li { display: flex; align-items: center; gap: 5px; }
+    .ld { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .cw { position: relative; }
+    .ptrow { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+    .ptog { display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; padding: 4px 10px; border-radius: 20px; border: .5px solid var(--border); background: var(--bg2); color: var(--text2); user-select: none; }
+    .ptog input { display: none; } .ptd { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .ht { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .ht th { text-align: left; font-size: 11px; font-weight: 500; color: var(--text2); padding: 6px 9px; border-bottom: .5px solid var(--border); text-transform: uppercase; letter-spacing: .04em; }
+    .ht td { padding: 9px; border-bottom: .5px solid var(--border); }
+    .ht tr:last-child td { border-bottom: none; } .ht tr:hover td { background: var(--bg2); }
+    .chg { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+    .sg { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .si { display: flex; flex-direction: column; gap: 5px; }
+    .sih { display: flex; justify-content: space-between; gap: 6px; }
+    .sil { font-size: 12px; color: var(--text2); } .siv { font-size: 12px; font-weight: 500; min-width: 58px; text-align: right; }
+    .sid { font-size: 11px; color: var(--text3); line-height: 1.4; }
+    input[type=range] { width: 100%; accent-color: var(--text); }
+    .fbox { background: var(--bg2); border-radius: var(--radius); padding: 13px 15px; font-size: 13px; line-height: 1.8; margin-top: 10px; }
+    .aiout { background: var(--bg2); border-radius: var(--radius-lg); padding: 16px; min-height: 100px; font-size: 13px; line-height: 1.85; white-space: pre-wrap; margin-top: 12px; }
+    .spin { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--border2); border-top-color: var(--text); border-radius: 50%; animation: sp .7s linear infinite; vertical-align: middle; margin-right: 7px; }
+    @keyframes sp { to { transform: rotate(360deg); } }
+    .tl { padding-left: 20px; position: relative; }
+    .tl::before { content: ''; position: absolute; left: 6px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
+    .ylbl { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 7px; padding-left: 2px; }
+    .tli { position: relative; margin-bottom: 9px; }
+    .tld { position: absolute; left: -16px; top: 15px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--bg); }
+    .tlc { background: var(--bg); border: .5px solid var(--border); border-radius: var(--radius-lg); padding: 13px 15px; }
+    .tlh { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; } .tln { font-size: 13px; font-weight: 500; }
+    .tlm { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 5px; }
+    .tlb { font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+    .tldsc { font-size: 12px; color: var(--text2); line-height: 1.5; } .tlsrc { font-size: 11px; color: var(--text3); margin-top: 3px; font-style: italic; }
+    .imp { font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .imp.pos { color: var(--green); } .imp.neg { color: var(--red); } .imp.neu { color: var(--text2); }
+    .t-res { background: #E6F1FB; color: #185FA5; } .t-com { background: #FAEEDA; color: #854F0B; } .t-trn { background: #EAF3DE; color: #3B6D11; }
+    .t-pub { background: #EEEDFE; color: #534AB7; } .t-ret { background: #FAECE7; color: #993C1D; } .t-mix { background: #E1F5EE; color: #0F6E56; }
+    .s-pln { background: #F1EFE8; color: #5F5E5A; } .s-apr { background: #FAEEDA; color: #854F0B; } .s-con { background: #EAF3DE; color: #3B6D11; }
+    .p-app { background: #E6F1FB; color: #185FA5; } .p-pen { background: #FAEEDA; color: #854F0B; } .p-ref { background: #FCEBEB; color: #A32D2D; } .p-con { background: #EAF3DE; color: #3B6D11; }
+    .nbst { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    .nbs { background: var(--bg2); border-radius: var(--radius); padding: 10px 13px; text-align: center; }
+    .nbsv { font-size: 21px; font-weight: 600; margin-bottom: 2px; } .nbsl { font-size: 11px; color: var(--text2); }
+    .map-layout { display: grid; grid-template-columns: 280px 1fr; gap: 18px; align-items: start; }
+    .rs-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: .5px solid var(--border); }
+    .rs-row:last-child { border-bottom: none; } .rs-name { font-size: 13px; flex: 1; }
+    .rs-score { font-size: 12px; font-weight: 500; min-width: 48px; text-align: right; }
+    .rs-bar { height: 6px; border-radius: 3px; }
+    .aa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .fg { display: flex; flex-direction: column; gap: 5px; } .fg label { font-size: 12px; color: var(--text2); }
+    select { font-size: 13px; padding: 8px 11px; border: .5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); width: 100%; }
+    .ac { background: var(--bg2); border-radius: var(--radius-lg); padding: 15px; margin-bottom: 10px; border: .5px solid var(--border); }
+    .ach { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 9px; }
+    .rnk { font-size: 26px; font-weight: 700; min-width: 30px; line-height: 1.1; }
+    .an { font-size: 14px; font-weight: 600; } .as { font-size: 12px; color: var(--text2); }
+    .adims { display: flex; gap: 7px; flex-wrap: wrap; margin: 9px 0; }
+    .adim { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: var(--text2); flex: 1; min-width: 48px; }
+    .adimv { font-size: 16px; font-weight: 600; color: var(--text); }
+    .arat { font-size: 12px; color: var(--text2); line-height: 1.6; }
+    .arisk { font-size: 12px; color: #A32D2D; margin-top: 6px; padding: 6px 10px; background: #FCEBEB; border-radius: 5px; }
+    .pre { font-size: 12px; padding: 5px 13px; border-radius: 20px; border: .5px solid var(--border); background: var(--bg2); color: var(--text2); cursor: pointer; }
+    .pre:hover { border-color: var(--border2); color: var(--text); }
+    .pre.on { background: var(--info-bg); color: var(--info-text); border-color: var(--info-text); }
+    .es { text-align: center; padding: 3rem 1rem; color: var(--text2); font-size: 13px; border: .5px dashed var(--border); border-radius: var(--radius-lg); }
+    .live-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: #EAF3DE; color: #3B6D11; font-weight: 600; vertical-align: middle; margin-left: 4px; }
+    @media (max-width: 580px) {
+      .g2, .sg, .aa-grid, .nbst { grid-template-columns: 1fr; }
+      .g4 { grid-template-columns: 1fr 1fr; }
+      .map-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div>
+      <h1>Property & Policy Intelligence</h1>
+      <p>Land Registry history · ARIMA forecast · Policy impact · Planning tracker · Policy map · Area agent</p>
+    </div>
+    <span class="badge">v3.0 — Live data ready</span>
+  </header>
+
+  <div class="search-row">
+    <input type="text" id="ain" placeholder="Enter UK postcode or address — e.g. CF10 1BT or 14 Castle Street Cardiff">
+    <button class="btn" onclick="doSearch()">Search</button>
+  </div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Sample addresses:</div>
+  <div class="pills">
+    <span class="pill" onclick="go('cf',this)">14 Castle Street, Cardiff CF10</span>
+    <span class="pill" onclick="go('sw',this)">7 Brixton Hill, London SW2</span>
+    <span class="pill" onclick="go('mn',this)">23 Wilmslow Rd, Manchester M14</span>
+    <span class="pill" onclick="go('bs',this)">9 Clifton Road, Bristol BS8</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" onclick="sw('hist')">Price history</button>
+    <button class="tab" onclick="sw('polc')">Policy impact</button>
+    <button class="tab" onclick="sw('scen')">Scenarios</button>
+    <button class="tab" onclick="sw('nbhd')">Neighbourhood</button>
+    <button class="tab" onclick="sw('pmap')">Policy map</button>
+    <button class="tab" onclick="sw('aagt')">Area agent</button>
+    <button class="tab" onclick="sw('bnch')">Benchmark</button>
+  </div>
+
+  <div id="abadge" class="ab hidden">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5S12.5 9.5 12.5 6c0-2.5-2-4.5-4.5-4.5zm0 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" fill="currentColor" opacity=".6"/></svg>
+    <span id="abtxt"></span>
+  </div>
+  <div id="pbar" class="pbar hidden"></div>
+  <div class="g4 hidden" id="mrow"></div>
+
+  <!-- HISTORY TAB -->
+  <div class="pnl on" id="t-hist">
+    <div class="es" id="es-hist">Select a sample address above to begin</div>
+    <div id="hist-c" class="hidden">
+      <div class="card">
+        <div class="ct">Full price history + ARIMA forecast + policy overlay <span class="live-tag">LIVE</span></div>
+        <div class="cs">Land Registry verified transactions · Regional index estimates · 2030 forecast with 80% confidence interval</div>
+        <div class="lgnd">
+          <div class="li"><span class="ld" style="background:#378ADD"></span>Verified sale</div>
+          <div class="li"><span class="ld" style="background:#1D9E75"></span>Index est.</div>
+          <div class="li"><span class="ld" style="background:#EF9F27;opacity:.8"></span>Forecast</div>
+          <div class="li"><span class="ld" style="background:#EF9F27;opacity:.2"></span>80% band</div>
+        </div>
+        <div class="ptrow" id="ptrow"></div>
+        <div class="cw" style="height:300px"><canvas id="cm"></canvas></div>
+      </div>
+      <div class="g2">
+        <div class="card nb">
+          <div class="ct">Transaction history <span class="live-tag">LIVE</span></div>
+          <div class="cs">Land Registry Price Paid — all verified sales</div>
+          <table class="ht"><thead><tr><th>Year</th><th>Price</th><th>Change</th><th>Context</th></tr></thead><tbody id="htb"></tbody></table>
+        </div>
+        <div class="card nb">
+          <div class="ct">CAGR per period</div>
+          <div class="cs">Compound annual growth rate</div>
+          <div class="cw" style="height:210px"><canvas id="ccg"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POLICY TAB -->
+  <div class="pnl" id="t-polc">
+    <div class="es" id="es-polc">Select an address to see policy impact</div>
+    <div id="polc-c" class="hidden">
+      <div class="g2">
+        <div class="card nb">
+          <div class="ct">Estimated policy contribution to value</div>
+          <div class="cs">Hedonic decomposition — modelled £ impact per intervention</div>
+          <div class="cw" style="height:240px"><canvas id="cpl"></canvas></div>
+          <div id="polnote" style="font-size:12px;color:var(--text2);margin-top:10px;line-height:1.6;border-top:.5px solid var(--border);padding-top:10px"></div>
+        </div>
+        <div class="card nb">
+          <div class="ct">UK housing policy timeline</div>
+          <div class="cs">Key events and estimated price effect on this market</div>
+          <div id="ptl"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENARIOS TAB -->
+  <div class="pnl" id="t-scen">
+    <div class="card">
+      <div class="ct">8-lever policy modeller</div>
+      <div class="cs">Adjust levers — forecast chart and Policy Map update live. Load a preset or configure manually.</div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Presets:</div>
+        <div class="pills" style="margin-bottom:0" id="presets"></div>
+      </div>
+      <div class="sg" id="sliders"></div>
+      <div class="fbox" id="fbox">Select an address to see the 2029 forecast.</div>
+    </div>
+    <div class="card">
+      <div class="ct">AI what-if analysis <span class="live-tag">AI</span></div>
+      <div class="cs">Claude analyses your lever configuration and produces a structured scenario narrative specific to this property and region.</div>
+      <button class="btn btn-sm" id="wifbtn" onclick="aiWhatIf()" disabled>Generate what-if analysis ↗</button>
+      <div class="aiout" id="wiout"><span style="color:var(--text2);font-style:italic">Select an address and configure levers, then generate.</span></div>
+    </div>
+  </div>
+
+  <!-- NEIGHBOURHOOD TAB -->
+  <div class="pnl" id="t-nbhd">
+    <div class="es" id="es-nbhd">Select an address to see neighbourhood intelligence</div>
+    <div id="nbhd-c" class="hidden">
+      <div class="nbst" id="nbst"></div>
+      <div class="card">
+        <div class="ct">Development intelligence board</div>
+        <div class="cs">Major planned and approved developments within 1 mile · Timeline to completion · Estimated property value impact</div>
+        <div class="tl" id="devboard"></div>
+      </div>
+      <div class="card">
+        <div class="ct">Planning applications <span class="live-tag">LIVE</span></div>
+        <div class="cs">Recent applications from the local planning portal within 0.3 miles</div>
+        <table class="ht" style="font-size:12px">
+          <thead><tr><th>Reference</th><th>Address</th><th>Type</th><th>Status</th><th>Decision</th><th>Impact</th></tr></thead>
+          <tbody id="patb"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- POLICY MAP TAB -->
+  <div class="pnl" id="t-pmap">
+    <div class="card">
+      <div class="ct">Policy winners map — regional property value impact</div>
+      <div class="cs">Scores update live as you adjust levers in the Scenarios tab. Green = existing owners benefit. Red = values suppressed.</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;padding:8px 12px;background:var(--bg2);border-radius:var(--radius)">
+        <strong>Current scenario:</strong> <span id="scen-lbl">Baseline — no levers active</span> — <a href="#" onclick="sw('scen');return false" style="color:var(--info-text)">edit levers ↗</a>
+      </div>
+      <div class="map-layout">
+        <div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">UK regions — schematic tile map</div>
+          <div id="tilemap"></div>
+          <div class="lgnd" style="margin-top:10px">
+            <div class="li"><span class="ld" style="background:#1D9E75"></span>+3%+</div>
+            <div class="li"><span class="ld" style="background:#9FE1CB"></span>+1–3%</div>
+            <div class="li"><span class="ld" style="background:#D3D1C7"></span>Neutral</div>
+            <div class="li"><span class="ld" style="background:#F5C4B3"></span>-1–3%</div>
+            <div class="li"><span class="ld" style="background:#D85A30"></span>-3%+</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:500;margin-bottom:10px">Regional ranking</div>
+          <div id="regscores"></div>
+          <div style="margin-top:14px;padding:11px;background:var(--bg2);border-radius:var(--radius);font-size:12px;color:var(--text2);line-height:1.7">
+            Scores use LSE housing supply elasticity coefficients and BoE monetary transmission research. Positive = growth for existing owners. Supply-side policies score negatively — that is by design.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AREA AGENT TAB -->
+  <div class="pnl" id="t-aagt">
+    <div class="card">
+      <div class="ct">Area Intelligence Agent <span class="live-tag">AI</span></div>
+      <div class="cs">Set your criteria. The agent analyses UK regions using your policy lever settings, growth forecasts, infrastructure pipeline, and affordability data — then ranks the top 5 areas with scored reasoning.</div>
+      <div class="aa-grid">
+        <div class="fg"><label>Budget</label>
+          <select id="aa-b"><option value="sub200">Under £200k</option><option value="200to350" selected>£200k–£350k</option><option value="350to500">£350k–£500k</option><option value="500plus">£500k+</option></select>
+        </div>
+        <div class="fg"><label>Property type</label>
+          <select id="aa-t"><option value="any" selected>Any type</option><option value="flat">Flat / apartment</option><option value="terraced">Terraced</option><option value="semi">Semi-detached</option><option value="detached">Detached</option></select>
+        </div>
+        <div class="fg"><label>Commute priority</label>
+          <select id="aa-c"><option value="none" selected>Not important</option><option value="London">London</option><option value="Manchester">Manchester</option><option value="Birmingham">Birmingham</option><option value="Bristol">Bristol</option><option value="Cardiff">Cardiff</option><option value="Leeds">Leeds</option></select>
+        </div>
+        <div class="fg"><label>Priority</label>
+          <select id="aa-p"><option value="balanced" selected>Balanced</option><option value="growth">Capital growth</option><option value="affordability">Affordability</option><option value="infrastructure">Infrastructure pipeline</option><option value="policy">Policy tailwind</option></select>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Active levers: <span id="aa-ls">None — baseline scenario</span></div>
+      <button class="btn btn-sm" id="aabtn" onclick="runAreaAgent()">Find my ideal areas ↗</button>
+    </div>
+    <div id="aa-res"><div class="es">Set your criteria and click Find to receive AI-ranked area recommendations.</div></div>
+  </div>
+
+  <!-- BENCHMARK TAB -->
+  <div class="pnl" id="t-bnch">
+    <div class="es" id="es-bnch">Select an address to see benchmarks</div>
+    <div id="bnch-c" class="hidden">
+      <div class="card"><div class="ct">Area benchmark</div><div class="cs">Price per sq ft and affordability ratio vs regional and England averages</div>
+        <div class="cw" style="height:210px"><canvas id="cbn"></canvas></div>
+      </div>
+      <div class="g2">
+        <div class="card nb"><div class="ct">10-year return estimate</div><div class="cs">Capital growth + rental yield vs alternatives</div>
+          <div class="cw" style="height:190px"><canvas id="crt"></canvas></div>
+        </div>
+        <div class="card nb"><div class="ct">Annual ownership costs</div><div class="cs">At current estimated value</div>
+          <div class="cw" style="height:190px"><canvas id="cct"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

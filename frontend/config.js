@@ -7,7 +7,7 @@ const CONFIG = {
   // Change this to your Railway URL after deploying
   API_BASE: window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:8000"
-    : "https://YOUR-RAILWAY-URL.up.railway.app",  // ← UPDATE THIS after Railway deploy
+    : "https://property-intelligence-production.up.railway.app",  // ← UPDATE THIS after Railway deploy
 
   // Feature flags
   USE_LIVE_LAND_REGISTRY: true,   // set false to use illustrative data only

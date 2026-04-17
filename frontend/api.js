@@ -1,103 +1,84 @@
-// ── REFINED API SERVICE ───────────────────────────────────────────────────────
-// Enhanced with caching and request tracking for a smoother UI experience.
+// ── API SERVICE ───────────────────────────────────────────────────────
+// All calls to the backend go through here.
+// Handles errors, loading states, and caching consistently.
 
 const API = {
-  // Simple in-memory cache to prevent redundant fetches when switching tabs
-  _cache: new Map(),
-  
-  // Track active requests to show global loading spinners if needed
-  _activeRequests: 0,
 
-  async _request(url, options = {}) {
-    this._activeRequests++;
-    try {
-      const resp = await fetch(url, options);
-      if (!resp.ok) throw new Error(`Status ${resp.status}`);
-      return await resp.json();
-    } finally {
-      this._activeRequests--;
-    }
-  },
+  async fetchProperty(postcode) {
+    try {
+      const resp = await fetch(`${CONFIG.API_BASE}/api/property?postcode=${encodeURIComponent(postcode)}`);
+      if (!resp.ok) throw new Error(`Status ${resp.status}`);
+      return await resp.json();
+    } catch (e) {
+      console.warn("Land Registry fetch failed:", e.message);
+      return null;
+    }
+  },
 
-  async fetchProperty(postcode) {
-    const cacheKey = `prop_${postcode}`;
-    if (this._cache.has(cacheKey)) return this._cache.get(cacheKey);
+  async fetchHPI(region) {
+    try {
+      const resp = await fetch(`${CONFIG.API_BASE}/api/hpi?region=${encodeURIComponent(region)}`);
+      if (!resp.ok) throw new Error(`Status ${resp.status}`);
+      return await resp.json();
+    } catch (e) {
+      console.warn("ONS HPI fetch failed:", e.message);
+      return null;
+    }
+  },
 
-    try {
-      const data = await this._request(`${CONFIG.API_BASE}/api/property?postcode=${encodeURIComponent(postcode)}`);
-      this._cache.set(cacheKey, data);
-      return data;
-    } catch (e) {
-      console.warn("Land Registry fetch failed:", e.message);
-      return null;
-    }
-  },
+  async fetchBaseRate() {
+    try {
+      const resp = await fetch(`${CONFIG.API_BASE}/api/base-rate`);
+      if (!resp.ok) throw new Error(`Status ${resp.status}`);
+      return await resp.json();
+    } catch (e) {
+      console.warn("BoE rate fetch failed:", e.message);
+      return { current_rate: 5.25 };
+    }
+  },
 
-  async fetchHPI(region) {
-    const cacheKey = `hpi_${region}`;
-    if (this._cache.has(cacheKey)) return this._cache.get(cacheKey);
+  async aiWhatIf(prompt) {
+    try {
+      const resp = await fetch(`${CONFIG.API_BASE}/api/ai/whatif`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, max_tokens: 900 })
+      });
+      if (!resp.ok) throw new Error(`Status ${resp.status}`);
+      const data = await resp.json();
+      return data.result || "Unable to generate analysis.";
+    } catch (e) {
+      console.error("AI what-if failed:", e.message);
+      return "AI service unavailable. Please try again.";
+    }
+  },
 
-    try {
-      const data = await this._request(`${CONFIG.API_BASE}/api/hpi?region=${encodeURIComponent(region)}`);
-      this._cache.set(cacheKey, data);
-      return data;
-    } catch (e) {
-      console.warn("ONS HPI fetch failed:", e.message);
-      return null;
-    }
-  },
+  async aiAreaAgent(criteria) {
+    try {
+      const resp = await fetch(`${CONFIG.API_BASE}/api/ai/area-agent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(criteria)
+      });
+      if (!resp.ok) throw new Error(`Status ${resp.status}`);
+      const data = await resp.json();
+      return data.result;
+    } catch (e) {
+      console.error("Area agent failed:", e.message);
+      return null;
+    }
+  },
 
-  async fetchBaseRate() {
-    // Base rates change rarely; cache for the duration of the session
-    if (this._cache.has('base_rate')) return this._cache.get('base_rate');
-
-    try {
-      const data = await this._request(`${CONFIG.API_BASE}/api/base-rate`);
-      this._cache.set('base_rate', data);
-      return data;
-    } catch (e) {
-      console.warn("BoE rate fetch failed:", e.message);
-      return { current_rate: 5.25 };
-    }
-  },
-
-  async aiWhatIf(prompt) {
-    // AI results are heavy; we use POST so we don't typically cache these 
-    // unless you want to save tokens for identical prompts.
-    try {
-      const data = await this._request(`${CONFIG.API_BASE}/api/ai/whatif`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, max_tokens: 900 })
-      });
-      return data.result || "Unable to generate analysis.";
-    } catch (e) {
-      console.error("AI what-if failed:", e.message);
-      return "AI service unavailable. Please try again.";
-    }
-  },
-
-  async aiAreaAgent(criteria) {
-    try {
-      return await this._request(`${CONFIG.API_BASE}/api/ai/area-agent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(criteria)
-      });
-    } catch (e) {
-      console.error("Area agent failed:", e.message);
-      return null;
-    }
-  },
-
-  async fetchPlanning(postcode) {
-    try {
-      return await this._request(`${CONFIG.API_BASE}/api/planning?postcode=${encodeURIComponent(postcode)}`);
-    } catch (e) {
-      console.warn("Planning fetch failed:", e.message);
-      return null;
-    }
-  }
+  async fetchPlanning(postcode) {
+    try {
+      const resp = await fetch(`${CONFIG.API_BASE}/api/planning?postcode=${encodeURIComponent(postcode)}`);
+      if (!resp.ok) throw new Error(`Status ${resp.status}`);
+      return await resp.json();
+    } catch (e) {
+      console.warn("Planning fetch failed:", e.message);
+      return null;
+    }
+  }
 };
 
 window.API = API;
